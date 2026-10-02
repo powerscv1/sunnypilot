@@ -2,9 +2,10 @@ import math
 
 from openpilot.cereal import log
 from openpilot.selfdrive.controls.lib.latcontrol import LatControl
+from openpilot.selfdrive.controls.lib.carrot_lateral_angle import CarrotLateralAnglePolicy
 
 # TODO This is speed dependent
-STEER_ANGLE_SATURATION_THRESHOLD = 2.5  # Degrees
+STEER_ANGLE_SATURATION_THRESHOLD = 3.0  # Degrees
 
 
 class LatControlAngle(LatControl):
@@ -12,6 +13,7 @@ class LatControlAngle(LatControl):
     super().__init__(CP, CP_SP, CI, dt)
     self.sat_check_min_speed = 5.
     self.use_steer_limited_by_safety = CP.brand in ("tesla", "hyundai")
+    self.use_carrot_angle_policy = CP.brand == "tesla"
 
   def update(self, active, CS, VM, params, steer_limited_by_safety, desired_curvature, calibrated_pose, curvature_limited, lat_delay):
     angle_log = log.ControlsState.LateralAngleState.new_message()
@@ -33,5 +35,11 @@ class LatControlAngle(LatControl):
       angle_control_saturated = abs(angle_steers_des - CS.steeringAngleDeg) > STEER_ANGLE_SATURATION_THRESHOLD
     angle_log.saturated = bool(self._check_saturation(angle_control_saturated, CS, False, curvature_limited))
     angle_log.steeringAngleDeg = float(CS.steeringAngleDeg)
-    angle_log.steeringAngleDesiredDeg = angle_steers_des
+    # During a driver override, expose the measured angle as the desired
+    # angle. This prevents a stale model target from being reported while
+    # the driver is actively steering and matches carrot lateral behavior.
+    angle_log.steeringAngleDesiredDeg = (
+      CarrotLateralAnglePolicy.desired_angle(angle_steers_des, CS.steeringAngleDeg, CS.steeringPressed)
+      if self.use_carrot_angle_policy else float(angle_steers_des)
+    )
     return 0, float(angle_steers_des), angle_log

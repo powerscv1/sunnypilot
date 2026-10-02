@@ -14,6 +14,7 @@ from openpilot.selfdrive.controls.lib.longitudinal_mpc_lib.long_mpc import T_IDX
 from openpilot.selfdrive.controls.lib.drive_helpers import CONTROL_N, get_accel_from_plan, should_stop
 from openpilot.selfdrive.car.cruise import V_CRUISE_MAX, V_CRUISE_UNSET
 from openpilot.common.swaglog import cloudlog
+from openpilot.selfdrive.carrot.carrot_man_input import get_carrot_man
 
 from openpilot.sunnypilot.selfdrive.controls.lib.longitudinal_planner import LongitudinalPlannerSP
 
@@ -83,6 +84,12 @@ class LongitudinalPlanner(LongitudinalPlannerSP):
 
     v_ego = sm['carState'].vEgo
     v_cruise_kph = min(sm['carState'].vCruise, V_CRUISE_MAX)
+    # CarrotWeb may provide a temporary navigation speed cap.  It can only
+    # reduce the stock cruise target and is ignored when the message is stale
+    # or invalid, so loss of the web bridge cannot increase speed.
+    carrot_man = get_carrot_man(sm)
+    if carrot_man is not None:
+      v_cruise_kph = min(v_cruise_kph, carrot_man.desiredSpeed)
     v_cruise = v_cruise_kph * CV.KPH_TO_MS
     if sm['controlsState'].forceDecel:
       v_cruise = 0.0

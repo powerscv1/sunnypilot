@@ -20,3 +20,8 @@ class TestServices(OpenpilotTestCase):
     with tempfile.NamedTemporaryFile(suffix=".h") as f:
       ret = subprocess.run(f"python3 {services.__file__} > {f.name} && clang++ {f.name} -std=c++11", shell=True).returncode
       assert ret == 0, "generated services header is not valid C"
+
+  def test_carrot_man_service_registered(self):
+    service = SERVICE_LIST["carrotMan"]
+    assert service.should_log
+    assert service.frequency == 0.
